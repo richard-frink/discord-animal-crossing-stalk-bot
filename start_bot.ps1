@@ -1,0 +1,1 @@
+nodemon --inspect=0.0.0.0:9251 index.js
