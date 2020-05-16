@@ -2,6 +2,8 @@ const { Client } = require('discord.js');
 const { token } = require('./settings');
 const client = new Client();
 const fs = require('fs');
+const http = require('http');
+
 var cacheFile = "cache.txt";
 var dayHash = {
 	1:"MON",
@@ -292,7 +294,15 @@ function getBasicPricesForAnalysis(user) {
 	return prices;
 }
 
+function getUsersPercentlink(user) {
+	return getLink(user, "http://localhost:5011/")
+}
+
 function getUsersTurnipProphetLink(user) {
+	return getLink(user, "https://turnipprophet.io/");
+}
+
+function getLink(user, url) {
 	var prices = [NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN];
 
 	if (user.sundayPrice == " ") {
@@ -306,7 +316,7 @@ function getUsersTurnipProphetLink(user) {
 			prices[i] = user.prices[i - 1];
 	}
 
-	var result = "https://turnipprophet.io/?prices=";
+	var result = url + "?prices=";
 	prices.forEach(price => {
 		var toAdd = price;
 		if (isNaN(toAdd) || toAdd == " ")
@@ -327,13 +337,53 @@ function getUserIdsInGuild(msg) {
 	return members = Array.from(msg.guild.members.keys());
 }
 
+function getPercentsFromLink(link) {
+	// This is the JSON from our response
+	// should be like this:
+	// |dec|flu|lar|sma|
+	
+	// there is absolutely no way to do this synchronously, node is freaking stupid
+	http.get(link, callbackGET).end();
+}
+
+
+var done = false;
+var table_row = "";
+callbackGET = function(response) {
+	response.on('data',
+		function(row) {
+			var values = row.toString().split("|");
+			values.splice(0,1);
+			values.forEach((value) => {
+				table_row += "|" + value.trim().padStart(3,' ');
+			})
+		}
+	)
+	response.on('end', function() {
+		done = true;
+	});
+};
+
 function allResults(users) {
 	var result = "here are all of the results: ";
 	users.forEach(user => {
 		result = result + "\r\n**" + user.username + "** " + getUsersTurnipProphetLink(user);
 	});
-	
-	return result;
+
+	result += "\r\n\r\nAlso here is the prediction chart: ";
+	result += "\r\n```\r\n|nam|dec|flu|lar|sma|";
+	users.forEach(user => {
+		var user_url = getUsersPercentlink(user);
+		getPercentsFromLink(user_url);
+		console.log(user_url);
+		require('deasync').loopWhile(function () { return !done; });
+		done = false;
+		result += "\r\n|" + user.username.slice(0,3) + table_row + "|";
+		table_row = "";
+		console.log(result);
+	}); 
+
+	return result + "\r\n```";
 }
 
 client.on("error", (e) => console.error(e));
@@ -429,7 +479,7 @@ client.on('message', msg => {
 
 		msg.reply("please go here to see your results: " + link);
 	}
-	else if (message.startsWith("!s all-results")) {
+else if (message.startsWith("!s all-results")) {
 		var users = getCache();
 
 		// filter down to the people in the chat the command came from
@@ -443,6 +493,45 @@ client.on('message', msg => {
 		});
 		
 		msg.reply(allResults(finalUsers));
+	}
+	else if (message.startsWith("mine")) {
+		var users = getCache();
+		
+		var id = msg.author.id;
+		var thisUser = users[0];
+
+		users.forEach(user => {
+			if (user.id.includes(id))
+				thisUser = user;
+		});
+		
+		if (thisUser == undefined)
+			return;
+		
+		var results = getPercentsFromLink(getUsersPercentlink(thisUser));
+
+		msg.reply("here are the results:\r\n" + "| nam | dec | flu | lar | sma |\r\n| " + thisUser.username.substring(0,3) + " " + results);
+	}
+	else if (message.startsWith("all")) {
+		var users = getCache();
+
+		// filter down to the people in the chat the command came from
+		var userIds = getUserIdsInGuild(msg);
+		var finalUsers = [];
+		userIds.forEach(id => {
+			users.forEach(user => {
+				if (user.id.includes(id))
+					finalUsers.push(user);
+			});
+		});
+		
+		var results = "";
+
+		finalUsers.forEach(user => {
+			results = results + "\r\n**" + user.username + "** " +  getPercentsFromLink(getUsersPercentlink(user));
+		});
+
+		msg.reply("here are the results:" + results);
 	}
 	else if (message.startsWith("!s last-pattern")) {
 
