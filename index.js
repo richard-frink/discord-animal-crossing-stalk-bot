@@ -1,9 +1,9 @@
 const { Client } = require('discord.js');
 const { token } = require('./settings');
-const https = require('https');
-
 const client = new Client();
 const fs = require('fs');
+const http = require('http');
+
 var cacheFile = "cache.txt";
 var dayHash = {
 	1:"MON",
@@ -45,7 +45,7 @@ class UserPrices {
 		this.sundayPrice = " ";
 		this.pattern = 0;
 	}
-
+	
 	addSundayPrice(price) {
 		this.sundayPrice = price;
 	}
@@ -62,11 +62,11 @@ class UserPrices {
 			this.prices.push(price);
 		}
 	}
-
+	
 	removeLastPrice() {
 		this.prices.splice(this.prices.length - 1, 1)
 	}
-
+	
 	toString() {
 		var result = this.id;
 		result = result + "," + this.username;
@@ -130,22 +130,22 @@ function parseLine(line) {
 	if (line == "")
 		return null;
 	var prices = line.split(",");
-
+	
 	// user id
 	var rawUser = prices[0];
 	if (rawUser == "")
 		return null;
 	var user = new UserPrices(rawUser);
-
+	
 	// splce off user id
 	prices.splice(0,1);
-
+	
 	// username
 	var rawUsername = prices[0];
 	if (rawUsername == "")
 		return null;
 	user.username = rawUsername;
-
+	
 	// splce off username
 	prices.splice(0,1);
 
@@ -157,11 +157,11 @@ function parseLine(line) {
 	// splce off pattern
 	prices.splice(0,1);
 
-
+	
 	// sunday price
 	var sunday = prices[0];
 	user.addSundayPrice(sunday);
-
+	
 	// splice off sunday price
 	prices.splice(0,1);
 
@@ -169,7 +169,7 @@ function parseLine(line) {
 	prices.forEach(function(price) {
 		user.addPrice(price);
 	});
-
+	
 	return user;
 }
 
@@ -194,7 +194,7 @@ function addPriceForUser(users, id, username, price) {
 		user.addPrice(price)
 		users.push(user);
 	}
-
+	
 	return users;
 }
 
@@ -217,7 +217,7 @@ function catchUpUser(user) {
 				user.addPrice(" ");
 		}
 	});
-
+	
 	return user;
 }
 
@@ -226,7 +226,7 @@ function getStaleCache() {
 	var parts = [];
 	var users = [];
 	var data = fs.readFileSync(cacheFile, 'utf-8');
-
+	
 	rawCache = data.toString('utf-8');
 	parts = rawCache.split(";");
 	parts.forEach(function(part) {
@@ -235,7 +235,7 @@ function getStaleCache() {
 			users.push(user);
 		}
 	});
-
+	
 	return users;
 }
 
@@ -243,10 +243,10 @@ function getStaleCache() {
 function getCache() {
 
 	var staleUsersCache = getStaleCache();
-
+	
 	var updatedUsers = [];
 	staleUsersCache.forEach(function(user) {
-
+		
 		updatedUsers.push(catchUpUser(user));
 	});
 
@@ -294,13 +294,15 @@ function getBasicPricesForAnalysis(user) {
 	return prices;
 }
 
-function getUsersTurnipProphetLink(user) {
-	var result = "https://turnipprophet.io";
-
-	return result + getUsersLink(user);
+function getUsersPercentlink(user) {
+	return getLink(user, "http://localhost:5011/")
 }
 
-function getUsersLink(user) {
+function getUsersTurnipProphetLink(user) {
+	return getLink(user, "https://turnipprophet.io/");
+}
+
+function getLink(user, url) {
 	var prices = [NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN];
 
 	if (user.sundayPrice == " ") {
@@ -314,7 +316,7 @@ function getUsersLink(user) {
 			prices[i] = user.prices[i - 1];
 	}
 
-	var result = "/?prices=";
+	var result = url + "?prices=";
 	prices.forEach(price => {
 		var toAdd = price;
 		if (isNaN(toAdd) || toAdd == " ")
@@ -331,21 +333,36 @@ function getUsersLink(user) {
 function getUserIdsInGuild(msg) {
 	if (msg.guild === null)
 		return [ msg.author.id ];
-
+	
 	return members = Array.from(msg.guild.members.keys());
 }
+
+function getPercentsFromLink(link) {
+	// This is the JSON from our response
+	// should be like this:
+	// |dec|flu|lar|sma|
+	
+	// there is absolutely no way to do this synchronously, node is freaking stupid
+	http.get(link, callbackGET).end();
+}
+
 
 var done = false;
 var table_row = "";
 callbackGET = function(response) {
 	response.on('data',
 		function(row) {
-			table_row += row + "|";
-			console.log(row);
-			done = true;
+			var values = row.toString().split("|");
+			values.splice(0,1);
+			values.forEach((value) => {
+				table_row += "|" + value.trim().padStart(3,' ');
+			})
 		}
-	);
-}
+	)
+	response.on('end', function() {
+		done = true;
+	});
+};
 
 function allResults(users) {
 	var result = "here are all of the results: ";
@@ -353,18 +370,20 @@ function allResults(users) {
 		result = result + "\r\n**" + user.username + "** " + getUsersTurnipProphetLink(user);
 	});
 
-	results += "\r\n\r\n Also here is the prediction chart: ";
-	results += "\r\n|nam|dec|flu|lar|sma|";
+	result += "\r\n\r\nAlso here is the prediction chart: ";
+	result += "\r\n```\r\n|nam|dec|flu|lar|sma|";
 	users.forEach(user => {
-		var user_url = "http://localhost:5011" + getUsersLink(user);
-
+		var user_url = getUsersPercentlink(user);
+		getPercentsFromLink(user_url);
+		console.log(user_url);
 		require('deasync').loopWhile(function () { return !done; });
 		done = false;
-		result += "\r\n" + user.username.slice(0,3) + table_row;
+		result += "\r\n|" + user.username.slice(0,3) + table_row + "|";
 		table_row = "";
-	});
+		console.log(result);
+	}); 
 
-	return result;
+	return result + "\r\n```";
 }
 
 client.on("error", (e) => console.error(e));
@@ -376,7 +395,7 @@ client.on('ready', () => {
 client.on('message', msg => {
 
 	// - my prices (buying and week's prices)
-
+ 
 	// all prices (buying and week's prices for everyone)
 
 	// clear out last weeks records on sunday
@@ -387,13 +406,13 @@ client.on('message', msg => {
 
 	// reply to a user and mention anyone
 		// msg.reply(toName(authorId))
-
+	
 	if (message.startsWith("!s track ")) {
 		if (getAmOrPm() == -1 && getDay() != 0) {
 			msg.reply("i'm not accepting prices at this time");
 			return;
 		}
-
+		
 		var id = msg.author.id;
 		var username = msg.author.username;
 		var num = message.replace("!s track ", "");
@@ -404,12 +423,12 @@ client.on('message', msg => {
 
 			// load data from file
 			var users = getCache();
-
+			
 			// add a new number to the author
 			users = addPriceForUser(users, "<@!" + id + ">", username, num);
-
+			
 			updateCache(users);
-
+			
 			msg.reply("thank you for helping us earn");
 
 			// filter down to the people in the chat the command came from
@@ -437,14 +456,14 @@ client.on('message', msg => {
 					finalUsers.push(user);
 			});
 		});
-
+		
 		var output = formatPrices(finalUsers);
-
+		
 		msg.reply(output);
 	}
 	else if (message.startsWith("!s results")) {
 		var users = getCache();
-
+		
 		var id = msg.author.id;
 		var thisUser = users[0];
 
@@ -452,15 +471,15 @@ client.on('message', msg => {
 			if (user.id.includes(id))
 				thisUser = user;
 		});
-
+		
 		if (thisUser == undefined)
 			return;
-
+		
 		var link = getUsersTurnipProphetLink(thisUser);
 
 		msg.reply("please go here to see your results: " + link);
 	}
-	else if (message.startsWith("!s all-results")) {
+else if (message.startsWith("!s all-results")) {
 		var users = getCache();
 
 		// filter down to the people in the chat the command came from
@@ -472,20 +491,59 @@ client.on('message', msg => {
 					finalUsers.push(user);
 			});
 		});
-
+		
 		msg.reply(allResults(finalUsers));
+	}
+	else if (message.startsWith("mine")) {
+		var users = getCache();
+		
+		var id = msg.author.id;
+		var thisUser = users[0];
+
+		users.forEach(user => {
+			if (user.id.includes(id))
+				thisUser = user;
+		});
+		
+		if (thisUser == undefined)
+			return;
+		
+		var results = getPercentsFromLink(getUsersPercentlink(thisUser));
+
+		msg.reply("here are the results:\r\n" + "| nam | dec | flu | lar | sma |\r\n| " + thisUser.username.substring(0,3) + " " + results);
+	}
+	else if (message.startsWith("all")) {
+		var users = getCache();
+
+		// filter down to the people in the chat the command came from
+		var userIds = getUserIdsInGuild(msg);
+		var finalUsers = [];
+		userIds.forEach(id => {
+			users.forEach(user => {
+				if (user.id.includes(id))
+					finalUsers.push(user);
+			});
+		});
+		
+		var results = "";
+
+		finalUsers.forEach(user => {
+			results = results + "\r\n**" + user.username + "** " +  getPercentsFromLink(getUsersPercentlink(user));
+		});
+
+		msg.reply("here are the results:" + results);
 	}
 	else if (message.startsWith("!s last-pattern")) {
 
 		var id = msg.author.id;
 		var pattern = message.replace("!s last-pattern ", "").toLocaleLowerCase();
-
+		
 		var choices = ["idk", "fluctuating", "large spike", "decreasing", "small spike"];
 		if (!choices.includes(pattern)) {
 			msg.reply("your pattern must be 'idk', 'fluctuating', 'large spike', 'decreasing', or 'small spike'");
 			return;
 		}
-
+		
 		var users = getCache();
 
 		users.forEach(user => {
