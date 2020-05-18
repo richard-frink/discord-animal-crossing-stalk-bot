@@ -29,14 +29,6 @@ var numberToPatternHash = {
 	4:"small spike"
 };
 
-class Price {
-	constructor(day, amPm, price) {
-		this.day = day;
-		this.amPm = amPm;
-		this.price = price;
-	}
-}
-
 class UserPrices {
 	constructor(id, username) {
 		this.id = id;
@@ -355,7 +347,7 @@ callbackGET = function(response) {
 			var values = row.toString().split("|");
 			values.splice(0,1);
 			values.forEach((value) => {
-				table_row += "|" + value.trim().padStart(3,' ');
+				table_row += "|" + value.trim().padStart(5,' ');
 			})
 		}
 	)
@@ -371,16 +363,14 @@ function allResults(users) {
 	});
 
 	result += "\r\n\r\nAlso here is the prediction chart: ";
-	result += "\r\n```\r\n|nam|dec|flu|lar|sma|";
+	result += "\r\n```| nam | dec | flu | lar | sma |";
 	users.forEach(user => {
 		var user_url = getUsersPercentlink(user);
 		getPercentsFromLink(user_url);
-		console.log(user_url);
 		require('deasync').loopWhile(function () { return !done; });
 		done = false;
-		result += "\r\n|" + user.username.slice(0,3) + table_row + "|";
+		result += "\r\n| " + user.username.slice(0,3) + " " + table_row + "|";
 		table_row = "";
-		console.log(result);
 	}); 
 
 	return result + "\r\n```";
@@ -479,7 +469,7 @@ client.on('message', msg => {
 
 		msg.reply("please go here to see your results: " + link);
 	}
-else if (message.startsWith("!s all-results")) {
+	else if (message.startsWith("!s all-results")) {
 		var users = getCache();
 
 		// filter down to the people in the chat the command came from
@@ -494,48 +484,10 @@ else if (message.startsWith("!s all-results")) {
 		
 		msg.reply(allResults(finalUsers));
 	}
-	else if (message.startsWith("mine")) {
-		var users = getCache();
-		
-		var id = msg.author.id;
-		var thisUser = users[0];
-
-		users.forEach(user => {
-			if (user.id.includes(id))
-				thisUser = user;
-		});
-		
-		if (thisUser == undefined)
-			return;
-		
-		var results = getPercentsFromLink(getUsersPercentlink(thisUser));
-
-		msg.reply("here are the results:\r\n" + "| nam | dec | flu | lar | sma |\r\n| " + thisUser.username.substring(0,3) + " " + results);
-	}
-	else if (message.startsWith("all")) {
-		var users = getCache();
-
-		// filter down to the people in the chat the command came from
-		var userIds = getUserIdsInGuild(msg);
-		var finalUsers = [];
-		userIds.forEach(id => {
-			users.forEach(user => {
-				if (user.id.includes(id))
-					finalUsers.push(user);
-			});
-		});
-		
-		var results = "";
-
-		finalUsers.forEach(user => {
-			results = results + "\r\n**" + user.username + "** " +  getPercentsFromLink(getUsersPercentlink(user));
-		});
-
-		msg.reply("here are the results:" + results);
-	}
 	else if (message.startsWith("!s last-pattern")) {
-
 		var id = msg.author.id;
+		id = "<@!" + id + ">";
+		var username = msg.author.username;
 		var pattern = message.replace("!s last-pattern ", "").toLocaleLowerCase();
 		
 		var choices = ["idk", "fluctuating", "large spike", "decreasing", "small spike"];
@@ -544,7 +496,25 @@ else if (message.startsWith("!s all-results")) {
 			return;
 		}
 		
+		// load data from file
 		var users = getCache();
+		
+		// this is all to add the user to the cache if they haven't put a price for sunday
+		// 		but want to track their pattern
+		var notFound = true;
+		users.forEach(function(user) {
+			if (user.id == id) {
+				// we found the id in our list
+				notFound = false;
+			}
+		});
+		if (notFound) {
+			// starting fresh
+			var user = new UserPrices(id);
+			user.username = username;
+			user = catchUpUser(user);
+			users.push(user);
+		}
 
 		users.forEach(user => {
 			if (user.id.includes(id)) {
@@ -572,7 +542,7 @@ else if (message.startsWith("!s all-results")) {
 		if (msg.author.id == 254064916061880320) {
 			msg.reply("be patient Brendan");
 		}
-		else {
+		else {	
 			msg.reply("it's almost snack time");
 		}
 	}
