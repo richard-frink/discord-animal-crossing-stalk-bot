@@ -1,11 +1,12 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
+  "description": "",
   "main": "index.js",
   "dependencies": {
-    "discord": "^0.8.2",
-    "discord.js": "^11.6.4",
-    "syllable": "^3.6.1"
+    "deasync": "^0.1.20",
+    "discord.js": "^11.5.1",
+    "node-schedule": "^1.3.2"
   },
   "devDependencies": {},
   "scripts": {
@@ -13,14 +14,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/rsussan/discord-animal-crossing-stalk-bot.git"
-  },
-  "bugs": {
-    "url": "https://github.com/rsussan/discord-animal-crossing-stalk-bot/issues"
-  },
-  "homepage": "https://github.com/rsussan/discord-animal-crossing-stalk-bot#readme",
-  "description": ""
+  "license": "ISC"
 }
