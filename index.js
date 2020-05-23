@@ -338,16 +338,17 @@ function getPercentsFromLink(link) {
 	http.get(link, callbackGET).end();
 }
 
+var cachedResults = {}
 
 var done = false;
-var table_row = "";
+var tableRow = "";
 callbackGET = function(response) {
 	response.on('data',
 		function(row) {
 			var values = row.toString().split("|");
 			values.splice(0,1);
 			values.forEach((value) => {
-				table_row += "|" + value.trim().padStart(5,' ');
+				tableRow += "|" + value.trim().padStart(5,' ');
 			})
 		}
 	)
@@ -357,7 +358,7 @@ callbackGET = function(response) {
 };
 
 function allResults(users) {
-	var result = "here are all of the results: ";
+	var result = "Here are all of the results: ";
 	users.forEach(user => {
 		result = result + "\r\n**" + user.username + "** " + getUsersTurnipProphetLink(user);
 	});
@@ -366,12 +367,16 @@ function allResults(users) {
 	result += "\r\n```| nam | dec | flu | lar | sma |";
 	users.forEach(user => {
 		var user_url = getUsersPercentlink(user);
-		getPercentsFromLink(user_url);
-		require('deasync').loopWhile(function () { return !done; });
-		done = false;
-		result += "\r\n| " + user.username.slice(0,3) + " " + table_row + "|";
-		table_row = "";
-	}); 
+		// if not in our cache, or new prices, do the actual call
+		if (!((user.id + user_url) in cachedResults)) {
+			getPercentsFromLink(user_url);
+			require('deasync').loopWhile(function () { return !done; });
+			done = false;
+			cachedResults[user.id + user_url] = tableRow.toString();
+		}
+		result += "\r\n| " + user.username.slice(0,3) + " " + cachedResults[user.id + user_url] + "|";
+		tableRow = "";
+	});
 
 	return result + "\r\n```";
 }
@@ -419,8 +424,6 @@ client.on('message', msg => {
 			
 			updateCache(users);
 			
-			msg.reply("thank you for helping us earn");
-
 			// filter down to the people in the chat the command came from
 			var userIds = getUserIdsInGuild(msg);
 			var finalUsers = [];
@@ -430,8 +433,8 @@ client.on('message', msg => {
 						finalUsers.push(user);
 				});
 			});
-			msg.author.send(formatPrices(finalUsers));
-			msg.author.send(allResults(finalUsers));
+			
+			msg.reply("thank you for helping us earn.\r\n" + allResults(finalUsers));
 		}
 	}
 	else if (message.startsWith("!s prices")) {
@@ -533,7 +536,6 @@ client.on('message', msg => {
 		}
 	}
 	else if (message.startsWith("test")) {
-		console.log(msg.author);
 	}
 	else if (message.startsWith("!s help")) {
 		msg.reply("here are the commands I know:\r\n!s track <your stalk price to track>\r\n!s prices\r\n!s results\r\n!s all-results\r\n!s last-pattern <your last pattern as words>\r\n!s snacks\r\n!s outsnacks");
