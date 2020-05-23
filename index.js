@@ -3,6 +3,7 @@ const { token } = require('./settings');
 const client = new Client();
 const fs = require('fs');
 const http = require('http');
+const ns = require('node-schedule');
 
 var cacheFile = "cache.txt";
 var dayHash = {
@@ -28,6 +29,14 @@ var numberToPatternHash = {
 	3:"decreasing",
 	4:"small spike"
 };
+
+// weekly cache clear
+ns.scheduleJob('0 0 * * SUN', () =>
+{
+	console.log("clearing cache");
+	updateFile("");
+	console.log("cache cleared");
+});
 
 class UserPrices {
 	constructor(id, username) {
