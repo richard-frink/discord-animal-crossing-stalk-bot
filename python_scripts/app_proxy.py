@@ -1,3 +1,4 @@
+#!/bin/python
 # Mike Koogle
 # May 15, 2020
 # I hope Covid-19 is over for you, future reader.
@@ -13,7 +14,6 @@ buzzwords = ["Decreasing", "Fluctuating", "Large Spike", "Small Spike"]
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
-chrome_options.add_argument("--window-size=1024x1400")
 
 # download Chrome Webdriver
 # https://sites.google.com/a/chromium.org/chromedriver/download
@@ -30,10 +30,8 @@ def hello():
 def be_redirect(my_query):
     pattern_nets = dict.fromkeys(buzzwords, 0.0)
 
-    # driver.get("http://0.0.0.0:8000/?prices=101.91.87.82.78........&pattern=1")
-    query_string = "https://turnipprophet.io/?" + my_query
+    query_string = "http://localhost:8000/?" + my_query
     driver.get(query_string)
-    assert "Animal Crossing - Turnip Prophet".lower() in driver.title.lower()
 
     # There's a cleaner way to wait, but hey. It's a second.
     time.sleep(1)
@@ -56,7 +54,7 @@ def be_redirect(my_query):
     # print(pattern_nets)
     outstring = ""
     for buzz in buzzwords:
-        outstring += '| ' + str(round(pattern_nets[buzz]))[:3]
+        outstring += '| ' + str(pattern_nets[buzz]).center(5, " ")
 
     # print(outstring)
     return outstring
